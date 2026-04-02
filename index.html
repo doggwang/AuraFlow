@@ -1,0 +1,1783 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AuraFlow - 情绪白噪音</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0a0a0f;
+      --bg-secondary: #12121a;
+      --text-primary: #f0f0f5;
+      --text-muted: #6b6b7a;
+      --aura-color: #6366f1;
+      --aura-glow: rgba(99, 102, 241, 0.4);
+      --fatigue: #f59e0b;
+      --anxiety: #ef4444;
+      --focus: #22c55e;
+      --neutral: #8b5cf6;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--bg-primary);
+    }
+
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+    }
+
+    #canvas-container canvas {
+      display: block;
+    }
+
+    .ui-layer {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2rem;
+      padding: 2rem;
+      max-width: 480px;
+      pointer-events: auto;
+    }
+
+    .title {
+      font-size: 1.1rem;
+      font-weight: 500;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+      text-shadow: 0 0 20px rgba(0,0,0,0.8);
+    }
+
+    .camera-wrapper {
+      position: relative;
+    }
+
+    .camera-container {
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      overflow: hidden;
+      position: relative;
+      background: var(--bg-secondary);
+      border: 2px solid rgba(255,255,255,0.05);
+      transition: box-shadow 0.8s ease, border-color 0.8s ease;
+      box-shadow: 0 0 60px var(--aura-glow);
+    }
+
+    .camera-container::before {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      background: conic-gradient(
+        from 0deg,
+        transparent,
+        var(--aura-color),
+        transparent,
+        var(--aura-color),
+        transparent
+      );
+      opacity: 0.3;
+      animation: rotate 8s linear infinite;
+      z-index: -1;
+      filter: blur(8px);
+      transition: background 0.8s ease;
+    }
+
+    @keyframes rotate {
+      to { transform: rotate(360deg); }
+    }
+
+    .camera-container.fatigue { --aura-color: var(--fatigue); border-color: rgba(245, 158, 11, 0.3); box-shadow: 0 0 80px rgba(245, 158, 11, 0.4); }
+    .camera-container.anxiety { --aura-color: var(--anxiety); border-color: rgba(239, 68, 68, 0.3); box-shadow: 0 0 80px rgba(239, 68, 68, 0.4); }
+    .camera-container.focus { --aura-color: var(--focus); border-color: rgba(34, 197, 94, 0.3); box-shadow: 0 0 80px rgba(34, 197, 94, 0.4); }
+    .camera-container.neutral { --aura-color: var(--neutral); border-color: rgba(139, 92, 246, 0.3); box-shadow: 0 0 80px rgba(139, 92, 246, 0.4); }
+
+    #video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    #video.mirrored {
+      transform: scaleX(-1);
+    }
+
+    .camera-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      color: var(--text-muted);
+      text-align: center;
+      padding: 2rem;
+    }
+
+    .camera-placeholder svg {
+      width: 48px;
+      height: 48px;
+      opacity: 0.5;
+    }
+
+    .camera-placeholder p {
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    .mood-status {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.6rem;
+      min-height: 70px;
+    }
+
+    .mood-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--aura-color);
+      transition: color 0.4s ease;
+      text-shadow: 0 0 10px rgba(0,0,0,0.9);
+    }
+
+    /* Blood Bar Mood Indicator */
+    .mood-bar-container {
+      width: 280px;
+      position: relative;
+    }
+
+    /* Label markers below the bar */
+    .mood-bar-labels {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 6px;
+      padding: 0 2px;
+    }
+
+    .mood-bar-labels span {
+      font-size: 0.6rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      opacity: 0.6;
+      transition: opacity 0.3s ease;
+    }
+
+    .mood-bar-labels span.active {
+      opacity: 1;
+    }
+
+    .mood-bar-labels .label-anxiety { color: var(--anxiety); }
+    .mood-bar-labels .label-fatigue { color: var(--fatigue); }
+    .mood-bar-labels .label-neutral { color: var(--neutral); }
+    .mood-bar-labels .label-focus { color: var(--focus); }
+
+    /* The main blood bar track */
+    .mood-bar-track {
+      width: 100%;
+      height: 10px;
+      border-radius: 5px;
+      background: linear-gradient(
+        to right,
+        var(--anxiety) 0%,
+        var(--fatigue) 30%,
+        var(--neutral) 55%,
+        var(--focus) 100%
+      );
+      position: relative;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5), inset 0 1px 3px rgba(255,255,255,0.1);
+      overflow: visible;
+    }
+
+    /* Tick marks for mood zones */
+    .mood-bar-track::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 30%;
+      width: 1px;
+      height: 100%;
+      background: rgba(255,255,255,0.2);
+    }
+
+    .mood-bar-track::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 55%;
+      width: 1px;
+      height: 100%;
+      background: rgba(255,255,255,0.2);
+    }
+
+    /* The sliding indicator marker */
+    .mood-bar-marker {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 20px;
+      height: 20px;
+      background: #fff;
+      border-radius: 50%;
+      box-shadow: 0 0 12px rgba(255,255,255,0.8), 0 2px 8px rgba(0,0,0,0.4);
+      transition: left 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.4s ease;
+      z-index: 10;
+    }
+
+    .mood-bar-marker::after {
+      content: '';
+      position: absolute;
+      inset: 3px;
+      border-radius: 50%;
+      background: var(--aura-color);
+      transition: background 0.4s ease;
+    }
+
+    .mood-bar-marker.anxiety { background: var(--anxiety); }
+    .mood-bar-marker.fatigue { background: var(--fatigue); }
+    .mood-bar-marker.neutral { background: var(--neutral); }
+    .mood-bar-marker.focus { background: var(--focus); }
+
+    .mood-bar-marker.anxiety::after { background: rgba(255,255,255,0.4); }
+    .mood-bar-marker.fatigue::after { background: rgba(255,255,255,0.4); }
+    .mood-bar-marker.neutral::after { background: rgba(255,255,255,0.4); }
+    .mood-bar-marker.focus::after { background: rgba(255,255,255,0.4); }
+
+    /* Current mood label above marker */
+    .mood-bar-value {
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      margin-bottom: 8px;
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #fff;
+      text-shadow: 0 0 10px rgba(0,0,0,0.8);
+      white-space: nowrap;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .mood-bar-marker.active .mood-bar-value {
+      opacity: 1;
+    }
+
+    /* Debug Panel - Raw Detection Values */
+    .debug-panel {
+      position: fixed;
+      bottom: 5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(10, 10, 15, 0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-size: 0.6rem;
+      font-family: 'SF Mono', 'Consolas', monospace;
+      color: rgba(255,255,255,0.6);
+      display: block;
+      min-width: 200px;
+      z-index: 100;
+    }
+
+    .debug-panel.hidden {
+      display: none;
+    }
+
+    .debug-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .debug-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .debug-label {
+      color: rgba(255,255,255,0.4);
+    }
+
+    .debug-value {
+      font-weight: 600;
+    }
+
+    .debug-value.anxiety { color: #ef4444; }
+    .debug-value.fatigue { color: #f59e0b; }
+    .debug-value.focus { color: #22c55e; }
+    .debug-value.neutral { color: #8b5cf6; }
+    .debug-value.unknown { color: #666; }
+
+    .debug-toggle {
+      position: fixed;
+      bottom: 5rem;
+      right: 1.5rem;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.4);
+      font-size: 0.65rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      z-index: 100;
+      pointer-events: auto;
+    }
+
+    .debug-toggle:hover {
+      background: rgba(255,255,255,0.12);
+      color: rgba(255,255,255,0.7);
+    }
+
+    .audio-controls {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.75rem 1.25rem;
+      background: rgba(18, 18, 26, 0.85);
+      backdrop-filter: blur(10px);
+      border-radius: 2rem;
+      border: 1px solid rgba(255,255,255,0.08);
+      opacity: 0.7;
+      transition: opacity 0.3s ease;
+      pointer-events: auto;
+    }
+
+    .audio-controls:hover {
+      opacity: 1;
+    }
+
+    .mute-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.08);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s ease;
+      color: var(--text-primary);
+    }
+
+    .mute-btn:hover {
+      background: rgba(255,255,255,0.15);
+    }
+
+    .mute-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .volume-slider {
+      width: 80px;
+      height: 4px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: rgba(255,255,255,0.15);
+      border-radius: 2px;
+      cursor: pointer;
+    }
+
+    .volume-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--text-primary);
+      cursor: pointer;
+    }
+
+    .instructions {
+      position: fixed;
+      top: 1.5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+      text-align: center;
+      text-shadow: 0 0 10px rgba(0,0,0,0.9);
+    }
+
+    .start-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 10, 15, 0.85);
+      backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+      z-index: 100;
+      cursor: pointer;
+      transition: opacity 0.5s ease;
+      pointer-events: auto;
+    }
+
+    .start-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .start-btn {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--aura-color), var(--neutral));
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 40px var(--aura-glow);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .start-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 60px var(--aura-glow);
+    }
+
+    .start-btn svg {
+      width: 32px;
+      height: 32px;
+      color: white;
+      margin-left: 4px;
+    }
+
+    .start-text {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+    }
+
+    .camera-dot {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ef4444;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .camera-dot.active {
+      opacity: 1;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    @media (max-width: 480px) {
+      .camera-container {
+        width: 240px;
+        height: 240px;
+      }
+      .instructions {
+        font-size: 0.65rem;
+        padding: 0 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div class="ui-layer">
+    <div class="instructions">滚轮调节音量 · 点击静音 · 空格键切换</div>
+
+    <div class="container">
+      <div class="title">AuraFlow</div>
+
+      <div class="camera-wrapper">
+        <div class="camera-container neutral" id="cameraContainer">
+          <video id="video" autoplay playsinline></video>
+          <div class="camera-placeholder" id="placeholder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+            </svg>
+            <p>正在初始化摄像头...</p>
+          </div>
+          <div class="camera-dot" id="cameraDot"></div>
+        </div>
+      </div>
+
+      <div class="mood-status">
+        <div class="mood-label neutral" id="moodLabel">等待检测</div>
+        <div class="mood-bar-container">
+          <div class="mood-bar-track" id="moodTrack">
+            <div class="mood-bar-marker" id="moodMarker">
+              <div class="mood-bar-value" id="moodValue">--</div>
+            </div>
+          </div>
+          <div class="mood-bar-labels">
+            <span class="label-anxiety" id="labelAnxiety">焦虑</span>
+            <span class="label-fatigue" id="labelFatigue">疲惫</span>
+            <span class="label-neutral" id="labelNeutral">平静</span>
+            <span class="label-focus" id="labelFocus">专注</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="audio-controls" id="audioControls">
+      <button class="mute-btn" id="muteBtn" title="静音">
+        <svg id="volumeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+          <path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/>
+        </svg>
+      </button>
+      <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="60">
+    </div>
+
+    <!-- Debug Toggle Button -->
+    <button class="debug-toggle" id="debugToggle" title="调试信息">DBG</button>
+
+    <!-- Debug Panel -->
+    <div class="debug-panel" id="debugPanel">
+      <div class="debug-row">
+        <span class="debug-label">眼睛 EAR:</span>
+        <span class="debug-value" id="debugEAR">--</span>
+      </div>
+      <div class="debug-row">
+        <span class="debug-label">嘴巴 MAR:</span>
+        <span class="debug-value" id="debugMAR">--</span>
+      </div>
+      <div class="debug-row">
+        <span class="debug-label">眉压:</span>
+        <span class="debug-value" id="debugBrow">--</span>
+      </div>
+      <div class="debug-row">
+        <span class="debug-label">判定:</span>
+        <span class="debug-value" id="debugResult">--</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="start-overlay" id="startOverlay">
+    <button class="start-btn">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M8 5v14l11-7z"/>
+      </svg>
+    </button>
+    <div class="start-text">点击开始</div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.127.0/build/three.min.js?v=20260402"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.127.0/examples/js/shaders/CopyShader.js?v=20260402"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.127.0/examples/js/shaders/LuminosityHighPassShader.js?v=20260402"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.127.0/examples/js/postprocessing/EffectComposer.js?v=20260402"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.127.0/examples/js/postprocessing/RenderPass.js?v=20260402"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.127.0/examples/js/postprocessing/ShaderPass.js?v=20260402"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.127.0/examples/js/postprocessing/UnrealBloomPass.js?v=20260402"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tweenjs/tween.js@21/dist/tween.umd.js?v=20260402"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.min.js?v=20260402"></script>
+  <script>
+    // ============================================
+    // AuraFlow - Particle Ocean + Audio Engine
+    // ============================================
+
+    const Mood = {
+      FATIGUE: 'fatigue',
+      ANXIETY: 'anxiety',
+      FOCUS: 'focus',
+      NEUTRAL: 'neutral',
+      UNKNOWN: 'unknown'
+    };
+
+    const MOOD_CONFIG = {
+      [Mood.FATIGUE]: { label: '疲惫', color: '#f59e0b', colorHex: 0xf59e0b, particleSize: 1.5, waveSpeed: 0.3, density: 0.7, filterFreq: 800, primaryNoise: 'pink', secondaryNoise: 'rumble', gain: 0.8 },
+      [Mood.ANXIETY]: { label: '焦虑', color: '#ef4444', colorHex: 0xef4444, particleSize: 0.6, waveSpeed: 1.5, density: 1.3, filterFreq: 1200, primaryNoise: 'pink', secondaryNoise: 'rain', gain: 0.7 },
+      [Mood.FOCUS]: { label: '专注', color: '#22c55e', colorHex: 0x22c55e, particleSize: 1.0, waveSpeed: 1.0, density: 1.0, filterFreq: 3000, primaryNoise: 'rain', secondaryNoise: 'white', gain: 0.5 },
+      [Mood.NEUTRAL]: { label: '平静', color: '#8b5cf6', colorHex: 0x8b5cf6, particleSize: 0.8, waveSpeed: 0.7, density: 0.9, filterFreq: 2000, primaryNoise: 'rain', secondaryNoise: 'white', gain: 0.55 },
+      [Mood.UNKNOWN]: { label: '检测中', color: '#6366f1', colorHex: 0x6366f1, particleSize: 1.0, waveSpeed: 1.0, density: 1.0, filterFreq: 2000, primaryNoise: 'rain', secondaryNoise: 'white', gain: 0.4 }
+    };
+
+    // ============================================
+    // GLSL Shaders - Separated for clarity
+    // ============================================
+
+    const OceanShaders = {
+      oceanVertex: `
+        // Perlin noise - 3D Simplex Noise
+        vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+        vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+
+        float snoise(vec3 v) {
+          const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+          const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+
+          vec3 i  = floor(v + dot(v, C.yyy));
+          vec3 x0 = v - i + dot(i, C.xxx);
+
+          vec3 g = step(x0.yzx, x0.xyz);
+          vec3 l = 1.0 - g;
+          vec3 i1 = min(g.xyz, l.zxy);
+          vec3 i2 = max(g.xyz, l.zxy);
+
+          vec3 x1 = x0 - i1 + C.xxx;
+          vec3 x2 = x0 - i2 + C.yyy;
+          vec3 x3 = x0 - D.yyy;
+
+          i = mod289(i);
+          vec4 p = permute(permute(permute(
+                    i.z + vec4(0.0, i1.z, i2.z, 1.0))
+                  + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+                  + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+
+          float n_ = 0.142857142857;
+          vec3  ns = n_ * D.wyz - D.xzx;
+
+          vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+
+          vec4 x_ = floor(j * ns.z);
+          vec4 y_ = floor(j - 7.0 * x_);
+
+          vec4 x = x_ *ns.x + ns.yyyy;
+          vec4 y = y_ *ns.x + ns.yyyy;
+          vec4 h = 1.0 - abs(x) - abs(y);
+
+          vec4 b0 = vec4(x.xy, y.xy);
+          vec4 b1 = vec4(x.zw, y.zw);
+
+          vec4 s0 = floor(b0)*2.0 + 1.0;
+          vec4 s1 = floor(b1)*2.0 + 1.0;
+          vec4 sh = -step(h, vec4(0.0));
+
+          vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+          vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+
+          vec3 p0 = vec3(a0.xy, h.x);
+          vec3 p1 = vec3(a0.zw, h.y);
+          vec3 p2 = vec3(a1.xy, h.z);
+          vec3 p3 = vec3(a1.zw, h.w);
+
+          vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+          p0 *= norm.x;
+          p1 *= norm.y;
+          p2 *= norm.z;
+          p3 *= norm.w;
+
+          vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+          m = m * m;
+          return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+        }
+
+        // Attributes from geometry
+        attribute vec3 aRandom;    // Random jitter + phase offset
+        attribute float aGridX;    // Grid X index (0-99)
+        attribute float aGridY;    // Grid Y index (0-99)
+
+        // Uniforms
+        uniform float uTime;
+        uniform float uSpeed;
+        uniform float uMouseX;
+        uniform float uMouseY;
+        uniform float uMouseZ;
+        uniform float uPixelRatio;
+
+        // Varyings
+        varying float vHeight;
+        varying float vBrightness;
+        varying vec2 vUv;
+
+        void main() {
+          vec3 pos = position;
+
+          // --- Perlin Noise Wave Displacement ---
+          float scale = 0.08;
+          float time = uTime * uSpeed;
+
+          // Multi-octave noise for organic waves
+          float noise1 = snoise(vec3(pos.x * scale, pos.y * scale, time * 0.3));
+          float noise2 = snoise(vec3(pos.x * scale * 2.0, pos.y * scale * 2.0, time * 0.5)) * 0.5;
+          float noise3 = snoise(vec3(pos.x * scale * 0.5, pos.y * scale * 0.5, time * 0.15)) * 0.3;
+
+          float waveHeight = (noise1 + noise2 + noise3) * 8.0;
+
+          // --- Random Jitter (Retro Digital Feel) ---
+          float jitterX = aRandom.x * 0.4 - 0.2;  // ±0.1
+          float jitterY = aRandom.y * 0.4 - 0.2;
+          float jitterZ = aRandom.z * 0.3 - 0.15;
+
+          // --- Mouse Ripple Effect ---
+          float distToMouse = distance(pos.xy, vec2(uMouseX, uMouseY));
+          float ripple = sin(distToMouse * 0.5 - uTime * 3.0) * exp(-distToMouse * 0.08) * 3.0;
+          ripple *= smoothstep(20.0, 30.0, distToMouse); // Smooth fade instead of hard cutoff
+
+          // --- Apply Displacements ---
+          pos.z += waveHeight + ripple;
+          pos.x += jitterX;
+          pos.y += jitterY + jitterZ;
+
+          // --- Calculate Height for Coloring ---
+          vHeight = (waveHeight + 8.0) / 16.0; // Normalize 0-1
+          vHeight = clamp(vHeight, 0.0, 1.0);
+
+          // --- Hex阶梯 Quantization (Retro Digital) ---
+          // Limit to 8 hex steps: 0x00, 0x33, 0x66, 0x99, 0xCC, 0xFF
+          float hexSteps = 6.0;
+          vHeight = floor(vHeight * hexSteps) / hexSteps;
+
+          vBrightness = vHeight;
+          vUv = uv;
+
+          // --- Final Position ---
+          vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+          gl_Position = projectionMatrix * mvPosition;
+
+          // Point size with perspective
+          float size = 2.5 * uPixelRatio * (200.0 / -mvPosition.z);
+          size = clamp(size, 1.0, 8.0);
+          gl_PointSize = size;
+        }
+      `,
+
+      oceanFragment: `
+        uniform vec3 uColorLow;    // Deep cyan
+        uniform vec3 uColorHigh;  // White
+
+        varying float vHeight;
+        varying float vBrightness;
+
+        void main() {
+          // Circular point with soft edge
+          vec2 center = gl_PointCoord - vec2(0.5);
+          float dist = length(center);
+          if (dist > 0.5) discard;
+
+          float alpha = smoothstep(0.5, 0.1, dist);
+
+          // --- Hex阶梯 Color Interpolation ---
+          // Quantize brightness to 8 levels for retro digital feel
+          float hexBrightness = floor(vBrightness * 8.0) / 8.0;
+
+          // Mix between deep cyan and white based on quantized height
+          vec3 color = mix(uColorLow, uColorHigh, hexBrightness);
+
+          // Add extra brightness at wave peaks (bloom trigger)
+          float bloom = pow(vBrightness, 3.0) * 0.5;
+
+          gl_FragColor = vec4(color + bloom, alpha * 0.8);
+        }
+      `
+    };
+
+    // ============================================
+    // Particle Ocean - New Implementation
+    // ============================================
+
+    class ParticleOcean {
+      constructor(container) {
+        this.container = container;
+        this.scene = new THREE.Scene();
+        this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        this.renderer = new THREE.WebGLRenderer({ antialias: false });
+        this.composer = null;
+        this.particles = null;
+        this.clock = new THREE.Clock();
+
+        // Grid: 100x100 = 10,000 particles
+        this.gridSize = 100;
+        this.particleCount = this.gridSize * this.gridSize;
+
+        // Mood interpolation
+        this.currentMood = Mood.UNKNOWN;
+        this.targetColorLow = new THREE.Color(0x004444);
+        this.targetColorHigh = new THREE.Color(0x00ffff);
+        this.currentColorLow = new THREE.Color(0x004444);
+        this.currentColorHigh = new THREE.Color(0x00ffff);
+        this.targetSpeed = 1.0;
+        this.currentSpeed = 1.0;
+
+        // Mouse tracking (world coords)
+        this.mouseX = 0;
+        this.mouseY = 0;
+        this.mouseZ = 0;
+
+        this.init();
+        this.setupMouseTracking();
+      }
+
+      // Debounce utility - delays function execution until after wait milliseconds
+      debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+          clearTimeout(timeout);
+          timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+      }
+
+      init() {
+        // Renderer
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+        this.renderer.setClearColor(0x000000, 1);
+        this.container.appendChild(this.renderer.domElement);
+
+        // Camera
+        this.camera.position.set(0, -20, 45);
+        this.camera.lookAt(0, 0, 0);
+
+        // Particles
+        this.createParticles();
+
+        // Post-processing (Bloom)
+        this.setupPostProcessing();
+
+        // Resize handler (debounced to 100ms to prevent per-frame recalculation during drag)
+        window.addEventListener('resize', this.debounce(() => this.onResize(), 100));
+
+        // Start animation
+        this.animate();
+      }
+
+      createParticles() {
+        const geometry = new THREE.BufferGeometry();
+
+        // Positions - grid layout on XZ plane
+        const positions = new Float32Array(this.particleCount * 3);
+        const randoms = new Float32Array(this.particleCount * 3); // jitter seeds
+        const gridX = new Float32Array(this.particleCount);
+        const gridY = new Float32Array(this.particleCount);
+
+        const spacing = 1.2;
+        const offset = (this.gridSize - 1) * spacing / 2;
+
+        let idx = 0;
+        for (let y = 0; y < this.gridSize; y++) {
+          for (let x = 0; x < this.gridSize; x++) {
+            const i3 = idx * 3;
+
+            positions[i3] = x * spacing - offset;
+            positions[i3 + 1] = y * spacing - offset;
+            positions[i3 + 2] = 0;
+
+            // Random jitter seeds
+            randoms[i3] = Math.random();
+            randoms[i3 + 1] = Math.random();
+            randoms[i3 + 2] = Math.random();
+
+            gridX[idx] = x;
+            gridY[idx] = y;
+
+            idx++;
+          }
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('aRandom', new THREE.BufferAttribute(randoms, 3));
+        geometry.setAttribute('aGridX', new THREE.BufferAttribute(gridX, 1));
+        geometry.setAttribute('aGridY', new THREE.BufferAttribute(gridY, 1));
+
+        // Shader material
+        const material = new THREE.ShaderMaterial({
+          uniforms: {
+            uTime: { value: 0 },
+            uSpeed: { value: 1.0 },
+            uColorLow: { value: this.currentColorLow },
+            uColorHigh: { value: this.currentColorHigh },
+            uMouseX: { value: 0 },
+            uMouseY: { value: 0 },
+            uMouseZ: { value: 0 },
+            uPixelRatio: { value: this.renderer.getPixelRatio() }
+          },
+          vertexShader: OceanShaders.oceanVertex,
+          fragmentShader: OceanShaders.oceanFragment,
+          transparent: true,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending
+        });
+
+        this.particles = new THREE.Points(geometry, material);
+        this.scene.add(this.particles);
+
+        // Store material reference for uniform updates
+        this.material = material;
+      }
+
+      setupPostProcessing() {
+        this.composer = new THREE.EffectComposer(this.renderer);
+
+        const renderPass = new THREE.RenderPass(this.scene, this.camera);
+        this.composer.addPass(renderPass);
+
+        // Unreal Bloom for wave peak glow
+        const bloomPass = new THREE.UnrealBloomPass(
+          new THREE.Vector2(window.innerWidth, window.innerHeight),
+          0.8,   // strength
+          0.4,   // radius
+          0.2    // threshold - only bright pixels bloom
+        );
+        this.composer.addPass(bloomPass);
+        this.bloomPass = bloomPass;
+      }
+
+      setupMouseTracking() {
+        const onMouseMove = (e) => {
+          // Convert screen to world coordinates (approximate)
+          const x = (e.clientX / window.innerWidth - 0.5) * 120;
+          const y = -(e.clientY / window.innerHeight - 0.5) * 120;
+          this.mouseX = x;
+          this.mouseY = y;
+          this.mouseZ = 0;
+        };
+
+        const onTouchMove = (e) => {
+          if (e.touches.length > 0) {
+            const touch = e.touches[0];
+            const x = (touch.clientX / window.innerWidth - 0.5) * 120;
+            const y = -(touch.clientY / window.innerHeight - 0.5) * 120;
+            this.mouseX = x;
+            this.mouseY = y;
+            this.mouseZ = 0;
+          }
+        };
+
+        const onTouchStart = (e) => {
+          if (e.touches.length > 0) {
+            const touch = e.touches[0];
+            const x = (touch.clientX / window.innerWidth - 0.5) * 120;
+            const y = -(touch.clientY / window.innerHeight - 0.5) * 120;
+            this.mouseX = x;
+            this.mouseY = y;
+            this.mouseZ = 1; // Set to 1 to create initial ripple burst
+            // Reset to 0 after brief delay for continuous ripple
+            setTimeout(() => { this.mouseZ = 0; }, 100);
+          }
+        };
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('touchmove', onTouchMove);
+        window.addEventListener('touchstart', onTouchStart);
+      }
+
+      setMood(mood) {
+        if (this.currentMood === mood) return;
+        this.currentMood = mood;
+
+        const config = MOOD_CONFIG[mood];
+
+        // Deep cyan-based palettes per mood
+        const palettes = {
+          [Mood.FATIGUE]:    { low: 0x332200, high: 0xffaa00 },    // Amber
+          [Mood.ANXIETY]:    { low: 0x330011, high: 0xff2255 },    // Crimson
+          [Mood.FOCUS]:      { low: 0x003322, high: 0x00ff88 },    // Emerald
+          [Mood.NEUTRAL]:    { low: 0x001133, high: 0x4488ff },    // Blue
+          [Mood.UNKNOWN]:    { low: 0x002222, high: 0x00ffff }     // Cyan
+        };
+
+        const palette = palettes[mood] || palettes[Mood.UNKNOWN];
+        this.targetColorLow = new THREE.Color(palette.low);
+        this.targetColorHigh = new THREE.Color(palette.high);
+        this.targetSpeed = config.waveSpeed;
+      }
+
+      animate() {
+        requestAnimationFrame(() => this.animate());
+
+        const delta = this.clock.getDelta();
+        const elapsed = this.clock.getElapsedTime();
+
+        // Lerp all parameters
+        const lerpFactor = 1 - Math.pow(0.005, delta);
+
+        this.currentColorLow.lerp(this.targetColorLow, lerpFactor * 3);
+        this.currentColorHigh.lerp(this.targetColorHigh, lerpFactor * 3);
+        this.currentSpeed += (this.targetSpeed - this.currentSpeed) * lerpFactor;
+
+        // Update uniforms
+        if (this.material) {
+          this.material.uniforms.uTime.value = elapsed;
+          this.material.uniforms.uSpeed.value = this.currentSpeed;
+          this.material.uniforms.uColorLow.value = this.currentColorLow;
+          this.material.uniforms.uColorHigh.value = this.currentColorHigh;
+          this.material.uniforms.uMouseX.value = this.mouseX;
+          this.material.uniforms.uMouseY.value = this.mouseY;
+          this.material.uniforms.uMouseZ.value = this.mouseZ;
+        }
+
+        // Gentle camera sway
+        this.camera.position.x = Math.sin(elapsed * 0.15) * 3;
+        this.camera.position.y = -20 + Math.cos(elapsed * 0.1) * 2;
+        this.camera.lookAt(0, 0, 0);
+
+        // Render with bloom
+        this.composer.render();
+      }
+
+      onResize() {
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+
+        this.camera.aspect = width / height;
+        this.camera.updateProjectionMatrix();
+
+        this.renderer.setSize(width, height);
+        this.composer.setSize(width, height);
+
+        if (this.material) {
+          this.material.uniforms.uPixelRatio.value = this.renderer.getPixelRatio();
+        }
+      }
+    }
+
+    // ============================================
+    // Audio Engine - Web Audio API Synthesizer
+    // ============================================
+
+    class AudioEngine {
+      constructor() {
+        this.ctx = null;
+        this.masterGain = null;
+        this.isMuted = false;
+        this.volume = 0.6;
+        this.currentMood = Mood.UNKNOWN;
+        this.noiseNodes = {};
+        this.filters = {};
+        this.gains = {};
+        this.initialized = false;
+      }
+
+      async init() {
+        // Clean up any existing audio nodes before reinitializing
+        this.dispose();
+
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.value = this.volume;
+        this.masterGain.connect(this.ctx.destination);
+
+        await this.createNoiseSources();
+        Object.values(this.gains).forEach(g => g.gain.value = 0);
+        this.initialized = true;
+      }
+
+      async createNoiseSources() {
+        const bufferSize = this.ctx.sampleRate * 2;
+
+        // White noise
+        const whiteSource = this.ctx.createBufferSource();
+        whiteSource.buffer = this.createWhiteNoiseBuffer(bufferSize);
+        whiteSource.loop = true;
+        this.noiseNodes.white = whiteSource;
+
+        const whiteFilter = this.ctx.createBiquadFilter();
+        whiteFilter.type = 'lowpass';
+        whiteFilter.frequency.value = 4000;
+        whiteFilter.Q.value = 0.5;
+        this.filters.white = whiteFilter;
+
+        const whiteGain = this.ctx.createGain();
+        whiteGain.gain.value = 0;
+        this.gains.white = whiteGain;
+
+        whiteSource.connect(whiteFilter);
+        whiteFilter.connect(whiteGain);
+        whiteGain.connect(this.masterGain);
+
+        // Pink noise
+        const pinkSource = this.ctx.createBufferSource();
+        pinkSource.buffer = this.createPinkNoiseBuffer(bufferSize);
+        pinkSource.loop = true;
+        this.noiseNodes.pink = pinkSource;
+
+        const pinkFilter = this.ctx.createBiquadFilter();
+        pinkFilter.type = 'lowpass';
+        pinkFilter.frequency.value = 2000;
+        pinkFilter.Q.value = 0.5;
+        this.filters.pink = pinkFilter;
+
+        const pinkGain = this.ctx.createGain();
+        pinkGain.gain.value = 0;
+        this.gains.pink = pinkGain;
+
+        pinkSource.connect(pinkFilter);
+        pinkFilter.connect(pinkGain);
+        pinkGain.connect(this.masterGain);
+
+        // Rain sound
+        const rainSource = this.ctx.createBufferSource();
+        rainSource.buffer = this.createRainBuffer(bufferSize);
+        rainSource.loop = true;
+        this.noiseNodes.rain = rainSource;
+
+        const rainFilter = this.ctx.createBiquadFilter();
+        rainFilter.type = 'bandpass';
+        rainFilter.frequency.value = 3000;
+        rainFilter.Q.value = 0.3;
+        this.filters.rain = rainFilter;
+
+        const rainGain = this.ctx.createGain();
+        rainGain.gain.value = 0;
+        this.gains.rain = rainGain;
+
+        rainSource.connect(rainFilter);
+        rainFilter.connect(rainGain);
+        rainGain.connect(this.masterGain);
+
+        // Fire/rumble
+        const fireSource = this.ctx.createBufferSource();
+        fireSource.buffer = this.createFireBuffer(bufferSize);
+        fireSource.loop = true;
+        this.noiseNodes.fire = fireSource;
+
+        const fireFilter = this.ctx.createBiquadFilter();
+        fireFilter.type = 'lowpass';
+        fireFilter.frequency.value = 150;
+        fireFilter.Q.value = 1;
+        this.filters.fire = fireFilter;
+
+        const fireGain = this.ctx.createGain();
+        fireGain.gain.value = 0;
+        this.gains.fire = fireGain;
+
+        fireSource.connect(fireFilter);
+        fireFilter.connect(fireGain);
+        fireGain.connect(this.masterGain);
+
+        Object.values(this.noiseNodes).forEach(node => {
+          try { node.start(); } catch(e) {}
+        });
+      }
+
+      createWhiteNoiseBuffer(size) {
+        const buffer = this.ctx.createBuffer(1, size, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < size; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+        return buffer;
+      }
+
+      createPinkNoiseBuffer(size) {
+        const buffer = this.ctx.createBuffer(1, size, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+        for (let i = 0; i < size; i++) {
+          const white = Math.random() * 2 - 1;
+          b0 = 0.99886 * b0 + white * 0.0555179;
+          b1 = 0.99332 * b1 + white * 0.0750759;
+          b2 = 0.96900 * b2 + white * 0.1538520;
+          b3 = 0.86650 * b3 + white * 0.3104856;
+          b4 = 0.55000 * b4 + white * 0.5329522;
+          b5 = 0.7616 * b5 - white * 0.0168980;
+          data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+          b6 = white * 0.115926;
+        }
+        return buffer;
+      }
+
+      createRainBuffer(size) {
+        const buffer = this.ctx.createBuffer(2, size, this.ctx.sampleRate);
+        for (let channel = 0; channel < 2; channel++) {
+          const data = buffer.getChannelData(channel);
+          let lastSample = 0;
+          for (let i = 0; i < size; i++) {
+            const white = Math.random() * 2 - 1;
+            lastSample = lastSample * 0.99 + white * 0.01;
+            const filtered = lastSample * 50;
+            const droplet = Math.random() < 0.001 ? (Math.random() - 0.5) * 0.8 : 0;
+            data[i] = (filtered + droplet) * 0.3;
+          }
+        }
+        return buffer;
+      }
+
+      createFireBuffer(size) {
+        const buffer = this.ctx.createBuffer(1, size, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        let lastSample = 0;
+        for (let i = 0; i < size; i++) {
+          const white = Math.random() * 2 - 1;
+          lastSample = lastSample * 0.995 + white * 0.005;
+          const rumble = lastSample * 20;
+          const crackle = Math.random() < 0.0005 ? (Math.random() - 0.5) * (Math.random() * 0.8 + 0.2) : 0;
+          data[i] = (rumble + crackle) * 0.4;
+        }
+        return buffer;
+      }
+
+      setMood(mood) {
+        if (!this.initialized) return;
+
+        const config = MOOD_CONFIG[mood];
+        const now = this.ctx.currentTime;
+        const fadeTime = 2.0;
+
+        if (this.filters.rain) {
+          this.filters.rain.frequency.setTargetAtTime(config.filterFreq, now, fadeTime / 2);
+        }
+
+        const { primaryNoise, secondaryNoise, gain } = config;
+
+        Object.keys(this.gains).forEach(key => {
+          let targetGain = 0;
+          if (key === primaryNoise) targetGain = gain;
+          else if (key === secondaryNoise) targetGain = gain * 0.4;
+          this.gains[key].gain.setTargetAtTime(targetGain, now, fadeTime);
+        });
+
+        this.currentMood = mood;
+      }
+
+      setVolume(vol) {
+        this.volume = vol;
+        if (this.masterGain) {
+          const effectiveVol = this.isMuted ? 0 : vol;
+          this.masterGain.gain.setTargetAtTime(effectiveVol, this.ctx.currentTime, 0.1);
+        }
+      }
+
+      toggleMute() {
+        this.isMuted = !this.isMuted;
+        if (this.masterGain) {
+          const targetVol = this.isMuted ? 0 : this.volume;
+          this.masterGain.gain.setTargetAtTime(targetVol, this.ctx.currentTime, 0.1);
+        }
+        return this.isMuted;
+      }
+
+      dispose() {
+        if (!this.initialized) return;
+
+        // Stop all buffer sources
+        Object.values(this.noiseNodes).forEach(node => {
+          try { node.stop(); } catch(e) {}
+        });
+
+        // Disconnect and clear noise nodes
+        Object.values(this.noiseNodes).forEach(node => {
+          try { node.disconnect(); } catch(e) {}
+        });
+        this.noiseNodes = {};
+
+        // Disconnect and clear filters
+        Object.values(this.filters).forEach(filter => {
+          try { filter.disconnect(); } catch(e) {}
+        });
+        this.filters = {};
+
+        // Disconnect and clear gains
+        Object.values(this.gains).forEach(gain => {
+          try { gain.disconnect(); } catch(e) {}
+        });
+        this.gains = {};
+
+        // Disconnect master gain
+        if (this.masterGain) {
+          try { this.masterGain.disconnect(); } catch(e) {}
+          this.masterGain = null;
+        }
+
+        // Close audio context
+        if (this.ctx) {
+          try { this.ctx.close(); } catch(e) {}
+          this.ctx = null;
+        }
+
+        this.initialized = false;
+      }
+    }
+
+    // ============================================
+    // Face Analyzer - face-api.js
+    // ============================================
+
+    class FaceAnalyzer {
+      constructor() {
+        this.video = document.getElementById('video');
+        this.initialized = false;
+        this.lastMood = Mood.UNKNOWN;
+        this.moodCount = 0;
+        this.requiredConsecutive = 2;
+      }
+
+      async init() {
+        // Use face-api.js from justadudewhohacks (original repo)
+        // with models from @vladmandic (compatible fork)
+        const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model';
+
+        try {
+          console.log('[AuraFlow] Loading face-api models...');
+          console.log('[AuraFlow] faceapi version:', faceapi.version || 'unknown');
+
+          if (typeof faceapi === 'undefined') {
+            throw new Error('face-api.js not loaded');
+          }
+
+          // List all available load functions
+          const loadFns = Object.keys(faceapi).filter(k => typeof faceapi[k] === 'function' && k.includes('Landmark'));
+          console.log('[AuraFlow] Landmark functions:', loadFns);
+
+          // Load TinyFaceDetector
+          await faceapi.loadTinyFaceDetectorModel(MODEL_URL);
+          console.log('[AuraFlow] TinyFaceDetector loaded');
+
+          // Try each landmark function until one works
+          // IMPORTANT: When using TinyFaceDetector, should use TinyNet variants
+          const landmarkFns = [
+            'loadFaceLandmarkTinyModel',
+            'loadFaceLandmark68TinyNetModel',
+            'loadFaceLandmark68TinyModel',
+            'loadFaceLandmark68NetModel',
+            'loadFaceLandmark68Model',
+            'loadFaceLandmarkModel'
+          ];
+
+          let loaded = false;
+          for (const fn of landmarkFns) {
+            if (typeof faceapi[fn] === 'function') {
+              console.log('[AuraFlow] Trying:', fn);
+              try {
+                await faceapi[fn](MODEL_URL);
+                console.log('[AuraFlow] Loaded via:', fn);
+                loaded = true;
+                break;
+              } catch (e) {
+                console.log('[AuraFlow]', fn, 'failed:', e.message);
+              }
+            }
+          }
+
+          if (!loaded) {
+            throw new Error('Could not load any landmark model');
+          }
+
+          // Log faceapi.nets state for debugging
+          console.log('[AuraFlow] faceapi.nets after loading:', Object.keys(faceapi.nets || {}));
+
+          this.initialized = true;
+          console.log('[AuraFlow] Face models loaded successfully');
+        } catch (err) {
+          console.error('[AuraFlow] Face model error:', err.message);
+        }
+      }
+
+      async detect() {
+        if (!this.initialized || !this.video) {
+          console.log('[AuraFlow] detect: not initialized or no video');
+          return { mood: Mood.UNKNOWN, ear: 0, mar: 0, brow: 0 };
+        }
+
+        const options = new faceapi.TinyFaceDetectorOptions({
+          inputSize: 224,
+          scoreThreshold: 0.3
+        });
+
+        const detections = await faceapi
+          .detectAllFaces(this.video, options)
+          .withFaceLandmarks(true);
+
+        if (detections.length === 0) {
+          console.log('[AuraFlow] detect: no face detected');
+          return { mood: Mood.UNKNOWN, ear: 0, mar: 0, brow: 0 };
+        }
+
+        const landmarks = detections[0].landmarks;
+        const leftEye = landmarks.getLeftEye();
+        const rightEye = landmarks.getRightEye();
+        const mouth = landmarks.getMouth();
+        const leftBrow = landmarks.getLeftEyeBrow();
+        const rightBrow = landmarks.getRightEyeBrow();
+
+        // Calculate eye and mouth metrics
+        const leftEAR = this.calculateEAR(leftEye);
+        const rightEAR = this.calculateEAR(rightEye);
+        const avgEAR = (leftEAR + rightEAR) / 2;
+        const mar = this.calculateMAR(mouth);
+
+        // Calculate brow tension for anxiety detection
+        // calcBrowEyeRatio: smaller ratio = brows closer to eyes (anxiety)
+        const leftBrowRatio = this.calcBrowEyeRatio(leftBrow, leftEye);
+        const rightBrowRatio = this.calcBrowEyeRatio(rightBrow, rightEye);
+        const avgBrowRatio = (leftBrowRatio + rightBrowRatio) / 2;
+
+        // Detection thresholds (tuned for stability):
+        // EAR: eye open ratio (0.2-0.4 normal, <0.15 very closed, >0.4 very open)
+        // MAR: mouth open ratio (<0.15 closed, >0.25 open)
+        // BrowRatio: < 1.0 = brows close to eyes (anxiety), > 1.3 = raised (relaxed)
+
+        let detectedMood = Mood.UNKNOWN;
+
+        // Anxiety check first (brows close to eyes indicates tension)
+        // Lower ratio = higher anxiety; threshold of 0.75 (relaxed faces often > 0.8)
+        // Relaxed MAR constraint since anxious faces may have normal mouth movement
+        if (avgBrowRatio < 0.75) {
+          // Brow ratio alone indicates tension
+          detectedMood = Mood.ANXIETY;
+        } else if (avgEAR < 0.15 && mar > 0.3) {
+          // Closed eyes + open mouth = fatigue (yawning/sleepy)
+          detectedMood = Mood.FATIGUE;
+        } else if (avgEAR > 0.35 && mar < 0.1) {
+          // Very open eyes + closed mouth = focus/alert
+          detectedMood = Mood.FOCUS;
+        } else if (mar > 0.35) {
+          // Open mouth (talking or yawning) with normal eyes
+          detectedMood = Mood.NEUTRAL;
+        } else {
+          // Default: neutral state
+          detectedMood = Mood.NEUTRAL;
+        }
+
+        // Log for debugging
+        console.log(`[AuraFlow] EAR=${avgEAR.toFixed(3)} MAR=${mar.toFixed(3)} browRatio=${avgBrowRatio.toFixed(3)} => ${detectedMood}`);
+
+        if (detectedMood === this.lastMood) {
+          this.moodCount++;
+        } else {
+          this.moodCount = 1;
+          this.lastMood = detectedMood;
+        }
+
+        const finalMood = this.moodCount >= this.requiredConsecutive ? detectedMood : Mood.UNKNOWN;
+        return { mood: finalMood, ear: avgEAR, mar: mar, brow: avgBrowRatio };
+      }
+
+      calculateEAR(eye) {
+        const A = this.dist(eye[1], eye[5]);
+        const B = this.dist(eye[2], eye[4]);
+        const C = this.dist(eye[0], eye[3]);
+        return (A + B) / (2.0 * C);
+      }
+
+      calculateMAR(mouth) {
+        const A = this.dist(mouth[2], mouth[6]);
+        const B = this.dist(mouth[3], mouth[7]);
+        const C = this.dist(mouth[0], mouth[4]);
+        return (A + B) / (2.0 * C);
+      }
+
+      // Calculate ratio of brow-to-eye distance vs eye width
+      // This is more robust to face distance and camera angle
+      calcBrowEyeRatio(brow, eye) {
+        // Brow center Y
+        const browCenterY = (brow[0].y + brow[1].y + brow[2].y + brow[3].y + brow[4].y) / 5;
+        // Eye center Y
+        const eyeCenterY = (eye[0].y + eye[1].y + eye[2].y + eye[3].y + eye[4].y + eye[5].y) / 6;
+        // Eye width
+        const eyeWidth = Math.abs(eye[3].x - eye[0].x);
+
+        // Distance from brow center to eye center
+        const distance = eyeCenterY - browCenterY;
+
+        // Return ratio of distance to eye width
+        // Smaller ratio = brows closer to eyes (anxiety)
+        // Larger ratio = brows farther from eyes (relaxed/raised)
+        return eyeWidth > 0 ? distance / eyeWidth : 1.0;
+      }
+
+      dist(p1, p2) {
+        return Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2);
+      }
+    }
+
+    // ============================================
+    // UI Controller
+    // ============================================
+
+    class UIController {
+      constructor() {
+        this.cameraContainer = document.getElementById('cameraContainer');
+        this.cameraDot = document.getElementById('cameraDot');
+        this.placeholder = document.getElementById('placeholder');
+        this.moodLabel = document.getElementById('moodLabel');
+        this.moodMarker = document.getElementById('moodMarker');
+        this.moodValue = document.getElementById('moodValue');
+        this.startOverlay = document.getElementById('startOverlay');
+        this.muteBtn = document.getElementById('muteBtn');
+        this.volumeIcon = document.getElementById('volumeIcon');
+        this.video = document.getElementById('video');
+
+        // Label elements
+        this.labelAnxiety = document.getElementById('labelAnxiety');
+        this.labelFatigue = document.getElementById('labelFatigue');
+        this.labelNeutral = document.getElementById('labelNeutral');
+        this.labelFocus = document.getElementById('labelFocus');
+
+        // Mood to position mapping (percentage on bar)
+        this.moodPositions = {
+          [Mood.ANXIETY]: 10,
+          [Mood.FATIGUE]: 30,
+          [Mood.NEUTRAL]: 55,
+          [Mood.FOCUS]: 90,
+          [Mood.UNKNOWN]: 55
+        };
+      }
+
+      updateMood(mood, confidence = 0) {
+        // Update camera container class
+        this.cameraContainer.className = 'camera-container';
+
+        // Reset all label highlights
+        this.labelAnxiety.classList.remove('active');
+        this.labelFatigue.classList.remove('active');
+        this.labelNeutral.classList.remove('active');
+        this.labelFocus.classList.remove('active');
+
+        // Reset marker class
+        this.moodMarker.className = 'mood-bar-marker';
+
+        if (mood === Mood.UNKNOWN) {
+          this.moodLabel.textContent = '检测中...';
+          this.moodLabel.className = 'mood-label';
+          this.moodMarker.classList.remove('active');
+          return;
+        }
+
+        const config = MOOD_CONFIG[mood];
+
+        // Update mood label
+        this.moodLabel.className = 'mood-label ' + mood;
+        this.moodLabel.textContent = config.label;
+
+        // Update marker position (animated via CSS transition)
+        const position = this.moodPositions[mood] || 55;
+        this.moodMarker.style.left = position + '%';
+        this.moodMarker.classList.add(mood, 'active');
+
+        // Update value label
+        this.moodValue.textContent = config.label;
+
+        // Highlight active label
+        if (mood === Mood.ANXIETY) this.labelAnxiety.classList.add('active');
+        else if (mood === Mood.FATIGUE) this.labelFatigue.classList.add('active');
+        else if (mood === Mood.NEUTRAL) this.labelNeutral.classList.add('active');
+        else if (mood === Mood.FOCUS) this.labelFocus.classList.add('active');
+      }
+
+      showCamera(active) {
+        this.cameraDot.classList.toggle('active', active);
+        this.placeholder.style.display = active ? 'none' : 'flex';
+        this.video.classList.toggle('mirrored', active);
+      }
+
+      hideStartOverlay() {
+        this.startOverlay.classList.add('hidden');
+      }
+
+      setMuteIcon(muted) {
+        if (muted) {
+          this.volumeIcon.innerHTML = `
+            <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+            <line x1="23" y1="9" x2="17" y2="15"/>
+            <line x1="17" y1="9" x2="23" y2="15"/>
+          `;
+        } else {
+          this.volumeIcon.innerHTML = `
+            <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+            <path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/>
+          `;
+        }
+      }
+
+      updateDebug(ear, mar, brow, mood) {
+        const debugEAR = document.getElementById('debugEAR');
+        const debugMAR = document.getElementById('debugMAR');
+        const debugBrow = document.getElementById('debugBrow');
+        const debugResult = document.getElementById('debugResult');
+
+        // Log for debugging
+        console.log('[updateDebug] ear=' + ear.toFixed(3) + ' mar=' + mar.toFixed(3) + ' brow=' + brow.toFixed(3) + ' mood=' + mood);
+
+        if (debugEAR) debugEAR.textContent = ear.toFixed(3);
+        if (debugMAR) debugMAR.textContent = mar.toFixed(3);
+        if (debugBrow) debugBrow.textContent = brow.toFixed(3);
+
+        if (debugResult) {
+          debugResult.textContent = MOOD_CONFIG[mood]?.label || '--';
+          debugResult.className = 'debug-value ' + mood;
+        }
+      }
+    }
+
+    // ============================================
+    // Main App
+    // ============================================
+
+    class AuraFlowApp {
+      constructor() {
+        this.audio = new AudioEngine();
+        this.face = new FaceAnalyzer();
+        this.ui = new UIController();
+        this.ocean = null;
+        this.isRunning = false;
+        this.detectionInterval = null;
+        this.currentMood = Mood.UNKNOWN;
+      }
+
+      async start() {
+        // Initialize WebGL particle ocean
+        const container = document.getElementById('canvas-container');
+        this.ocean = new ParticleOcean(container);
+        this.ocean.setMood(Mood.UNKNOWN);
+
+        // Initialize audio
+        await this.audio.init();
+
+        // Get camera stream
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user', width: 320, height: 240 }
+          });
+          const video = document.getElementById('video');
+          video.srcObject = stream;
+          this.stream = stream;
+          this.ui.showCamera(true);
+
+          // Monitor camera permission changes
+          navigator.mediaDevices.ondevicechange = async () => {
+            try {
+              const tracks = stream.getVideoTracks();
+              if (tracks.length > 0) {
+                const permState = tracks[0].readyState;
+                console.log('[AuraFlow] Camera track state:', permState);
+                if (permState === 'ended' || permState === 'failed') {
+                  this.ui.placeholder.querySelector('p').textContent = '摄像头权限已撤销';
+                  this.ui.placeholder.style.display = 'flex';
+                  this.ui.cameraDot.classList.remove('active');
+                }
+              }
+            } catch (e) {
+              console.log('[AuraFlow] Device change check failed:', e);
+            }
+          };
+        } catch (err) {
+          console.error('[AuraFlow] Camera error:', err);
+          this.ui.placeholder.querySelector('p').textContent = '摄像头不可用';
+        }
+
+        // Initialize face detection
+        await this.face.init();
+
+        // Hide start overlay
+        this.ui.hideStartOverlay();
+
+        // Start detection loop
+        this.detectionInterval = setInterval(() => this.detectMood(), 500);
+
+        this.audio.setMood(Mood.UNKNOWN);
+        this.ui.updateMood(Mood.UNKNOWN);
+      }
+
+      async detectMood() {
+        const result = await this.face.detect();
+        const { mood, ear, mar, brow } = result;
+
+        // Update debug panel
+        this.ui.updateDebug(ear, mar, brow, mood);
+
+        if (mood !== this.currentMood) {
+          this.currentMood = mood;
+          this.audio.setMood(mood);
+          this.ocean.setMood(mood);
+          this.ui.updateMood(mood, 0.8);
+        }
+      }
+    }
+
+    // ============================================
+    // Initialize
+    // ============================================
+
+    const app = new AuraFlowApp();
+
+    document.getElementById('startOverlay').addEventListener('click', () => {
+      app.start();
+    });
+
+    document.getElementById('volumeSlider').addEventListener('input', (e) => {
+      app.audio.setVolume(e.target.value / 100);
+    });
+
+    document.getElementById('muteBtn').addEventListener('click', () => {
+      const muted = app.audio.toggleMute();
+      app.ui.setMuteIcon(muted);
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        const muted = app.audio.toggleMute();
+        app.ui.setMuteIcon(muted);
+      }
+    });
+
+    document.addEventListener('wheel', (e) => {
+      const slider = document.getElementById('volumeSlider');
+      const current = parseInt(slider.value);
+      const delta = e.deltaY > 0 ? -2 : 2;
+      slider.value = Math.max(0, Math.min(100, current + delta));
+      app.audio.setVolume(slider.value / 100);
+    });
+
+    document.body.addEventListener('wheel', (e) => {
+      if (e.target === document.body) e.preventDefault();
+    }, { passive: false });
+
+    // Debug panel toggle
+    const debugToggle = document.getElementById('debugToggle');
+    const debugPanel = document.getElementById('debugPanel');
+    debugToggle.addEventListener('click', () => {
+      debugPanel.classList.toggle('hidden');
+    });
+  </script>
+</body>
+</html>

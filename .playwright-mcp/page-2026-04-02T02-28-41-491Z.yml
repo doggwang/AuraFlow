@@ -1,0 +1,17 @@
+- generic [ref=e1]:
+  - generic:
+    - generic: 滚轮调节音量 · 点击静音 · 空格键切换
+    - generic [ref=e3]:
+      - generic [ref=e4]: AuraFlow
+      - generic [ref=e8]:
+        - img [ref=e9]
+        - paragraph [ref=e11]: 正在初始化摄像头...
+      - generic [ref=e14]: 等待检测
+    - generic [ref=e16]:
+      - button "静音" [ref=e17] [cursor=pointer]:
+        - img [ref=e18]
+      - slider [ref=e21] [cursor=pointer]: "60"
+  - generic [ref=e22] [cursor=pointer]:
+    - button [active] [ref=e23]:
+      - img [ref=e24]
+    - generic [ref=e26]: 点击开始

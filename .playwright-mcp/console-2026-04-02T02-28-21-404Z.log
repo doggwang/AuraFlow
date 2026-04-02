@@ -1,0 +1,5 @@
+[     406ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8765/favicon.ico:0
+[   23875ms] [ERROR] [AuraFlow] Camera error: NotReadableError: Device in use @ http://localhost:8765/:1264
+[   23876ms] [ERROR] [AuraFlow] Face model error: TypeError: faceapi.nashornPolyfill is not a function
+    at FaceAnalyzer.init (http://localhost:8765/:1083:25)
+    at AuraFlowApp.start (http://localhost:8765/:1270:25) @ http://localhost:8765/:1088

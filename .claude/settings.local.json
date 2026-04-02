@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -sI \"https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model/tiny_face_detector_model-weights_manifest.json\")",
+      "Bash(curl -sI \"https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap\")",
+      "mcp__Playwright__browser_navigate",
+      "Bash(python3 -m http.server 8765)",
+      "Bash(curl -sI \"http://localhost:8765/\")",
+      "Bash(curl -s http://localhost:8765/)",
+      "Bash(npx --yes serve -l 8765)",
+      "Bash(curl -sI http://localhost:8765/)",
+      "mcp__Playwright__browser_take_screenshot",
+      "mcp__Playwright__browser_snapshot",
+      "mcp__Playwright__browser_tabs",
+      "Bash(curl -sI \"https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js\")",
+      "Bash(curl -sI \"https://cdn.jsdelivr.net/npm/@tweenjs/tween.js@21/dist/tween.umd.js\")",
+      "WebFetch(domain:www.trae.cn)",
+      "mcp__Playwright__browser_run_code",
+      "Bash(curl -sI \"https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/postprocessing/EffectComposer.js\")",
+      "Bash(curl -sI \"https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/postprocessing/UnrealBloomPass.js\")",
+      "Bash(curl -sI \"https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js\")"
+    ]
+  }
+}

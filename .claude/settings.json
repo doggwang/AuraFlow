@@ -1,0 +1,93 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(date:*)",
+      "Bash(echo:*)",
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(mkdir:*)",
+      "Bash(wc:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(sort:*)",
+      "Bash(grep:*)",
+      "Bash(tr:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git tag:*)",
+      "Bash(npm test:*)",
+      "Bash(npx vitest:*)",
+      "Bash(npx serve:*)",
+      "Bash(curl -s https://cdn.jsdelivr.net/npm/three@0.127.0/build/three.min.js)",
+      "Bash(openssl dgst:*)",
+      "Bash(openssl base64:*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:1742)",
+      "Bash(curl -s http://localhost:1742)",
+      "Bash(node -c index.html)",
+      "Bash(sed 's/<script>//;s/<\\\\/script>//')",
+      "Bash(node --check /tmp/app.js)",
+      "Bash(curl -s https://cdn.jsdelivr.net/npm/three@0.127.0/examples/js/postprocessing/ShaderPass.js)",
+      "Bash(start http://localhost:3000)",
+      "Bash(netstat -ano)",
+      "Bash(python -m http.server 8080)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080)",
+      "Bash(start http://localhost:8080)",
+      "Bash(curl -sI \"https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model/face_landmark_68_tiny_model-weights_manifest.json\")",
+      "Bash(curl -sI \"https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model/face_landmark_68_model-weights_manifest.json\")",
+      "Bash(curl -s \"https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model/\")",
+      "Bash(curl -s \"https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/\")",
+      "Bash(curl -s \"https://data.jsdelivr.com/v1/packages/npm/@vladmandic/face-api@1.7.12/flat\")",
+      "Bash(curl -sL \"https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model/\")",
+      "Read(//d/Project/**)",
+      "Bash(git init:*)",
+      "Bash(git remote:*)",
+      "Bash(git reset:*)",
+      "Bash(gh auth:*)",
+      "Bash(git push:*)",
+      "Bash(git config:*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/gsd-check-update.js"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit|Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/gsd-context-monitor.js",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/gsd-prompt-guard.js",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "node .claude/hooks/gsd-statusline.js"
+  }
+}
