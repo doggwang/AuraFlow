@@ -1458,9 +1458,9 @@
         let detectedMood = Mood.UNKNOWN;
 
         // Anxiety check first (brows close to eyes indicates tension)
-        // Lower ratio = higher anxiety; threshold of 0.75 (relaxed faces often > 0.8)
+        // Lower ratio = higher anxiety; threshold of 0.70 (relaxed faces often > 0.75)
         // Relaxed MAR constraint since anxious faces may have normal mouth movement
-        if (avgBrowRatio < 0.75) {
+        if (avgBrowRatio < 0.80) {
           // Brow ratio alone indicates tension
           detectedMood = Mood.ANXIETY;
         } else if (avgEAR < 0.15 && mar > 0.3) {
